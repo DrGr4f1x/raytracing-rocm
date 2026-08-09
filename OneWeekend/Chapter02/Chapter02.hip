@@ -70,8 +70,8 @@ int main()
     const int numPixels = IMAGE_WIDTH * IMAGE_HEIGHT;
     const size_t fbSize = numPixels * sizeof(Vec3);
     
-    Vec3* fb_device = nullptr;
-    HIP_CHECK(hipMalloc((void**)&fb_device, fbSize));
+    Vec3* fb = nullptr;
+    HIP_CHECK(hipMallocManaged((void**)&fb, fbSize));
 
     // Block size
     const int tx = 8;
@@ -88,7 +88,7 @@ int main()
     // Render our buffer
     dim3 blocks(IMAGE_WIDTH / tx + 1, IMAGE_HEIGHT / ty + 1);
     dim3 threads(tx, ty);
-    Render<<<blocks, threads, 0 /*shared memory*/, hipStreamDefault>>> (fb_device, IMAGE_WIDTH, IMAGE_HEIGHT);
+    Render<<<blocks, threads, 0 /*shared memory*/, hipStreamDefault>>> (fb, IMAGE_WIDTH, IMAGE_HEIGHT);
 
     // Check if the kernel launch was successful.
     HIP_CHECK(hipGetLastError());
@@ -100,17 +100,13 @@ int main()
     HIP_CHECK(hipEventElapsedTime(&kernel_ms, start, stop));
     cerr << "Render time: " << kernel_ms / 1000.0f << " seconds" << endl;
 
-    // Copy from device to cpu
-    vector<Vec3> fb_cpu(numPixels);
-    HIP_CHECK(hipMemcpy(fb_cpu.data(), fb_device, numPixels * sizeof(Vec3), hipMemcpyDeviceToHost));
-
     // Save image
-    SaveImage("image.ppm", IMAGE_WIDTH, IMAGE_HEIGHT, fb_cpu.data());
+    SaveImage("image.ppm", IMAGE_WIDTH, IMAGE_HEIGHT, fb);
 
     // Free events variables and device memory.
     HIP_CHECK(hipEventDestroy(start));
     HIP_CHECK(hipEventDestroy(stop));
-    HIP_CHECK(hipFree(fb_device));
+    HIP_CHECK(hipFree(fb));
 
     return 0;
 }
